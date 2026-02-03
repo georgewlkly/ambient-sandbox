@@ -185,8 +185,8 @@
         const MIN_OPACITY = 0.1;    // Starting opacity at 40m
         const MAX_OPACITY = 1.0;    // Full opacity at 100m
 
-        // Track which word indices are currently visible
-        let visibleIndices = new Set();
+        // Track visible words: Map of index -> distance at which word appeared
+        let visibleWords = new Map();
         let previousDistance = 0;
 
         // Load HTML from source.html
@@ -246,7 +246,7 @@
         function initializeWords() {
             revealedText.innerHTML = sourceHTML;
             wordSpans = [];
-            visibleIndices = new Set();
+            visibleWords = new Map();
             previousDistance = 0;
             processTextNodes(revealedText, wordSpans);
         }
@@ -257,17 +257,20 @@
             return shuffled.slice(0, n);
         }
 
-        // Calculate opacity based on distance (10% at 40m, 100% at 100m)
-        function calculateOpacity(distance) {
-            if (distance <= APPEAR_START) return MIN_OPACITY;
-            if (distance >= APPEAR_END) return MAX_OPACITY;
-            const progress = (distance - APPEAR_START) / (APPEAR_END - APPEAR_START);
-            return MIN_OPACITY + progress * (MAX_OPACITY - MIN_OPACITY);
+        // Calculate opacity for a word based on when it appeared and current distance
+        // Each word grows from MIN_OPACITY at appearance to MAX_OPACITY at APPEAR_END
+        function calculateWordOpacity(appearDistance, currentDistance) {
+            if (currentDistance >= APPEAR_END) return MAX_OPACITY;
+            const distanceRemaining = APPEAR_END - appearDistance;
+            if (distanceRemaining <= 0) return MAX_OPACITY;
+            const progress = (currentDistance - appearDistance) / distanceRemaining;
+            return MIN_OPACITY + Math.min(progress, 1) * (MAX_OPACITY - MIN_OPACITY);
         }
 
-        // Update opacity for all visible words
-        function updateVisibleOpacity(opacity) {
-            visibleIndices.forEach(index => {
+        // Update opacity for all visible words based on their individual appearance distance
+        function updateAllWordOpacities(currentDistance) {
+            visibleWords.forEach((appearDistance, index) => {
+                const opacity = calculateWordOpacity(appearDistance, currentDistance);
                 wordSpans[index].style.opacity = opacity;
             });
         }
@@ -295,36 +298,34 @@
                 // Below 80m = 0 words
             }
 
-            const currentWordCount = visibleIndices.size;
+            const currentWordCount = visibleWords.size;
 
             if (targetWordCount > currentWordCount) {
                 // Need to show more words - pick randomly from hidden ones
                 const hiddenIndices = [];
                 for (let i = 0; i < wordSpans.length; i++) {
-                    if (!visibleIndices.has(i)) {
+                    if (!visibleWords.has(i)) {
                         hiddenIndices.push(i);
                     }
                 }
                 const toReveal = randomSelect(hiddenIndices, targetWordCount - currentWordCount);
-                const opacity = calculateOpacity(distance);
                 toReveal.forEach(index => {
-                    visibleIndices.add(index);
-                    wordSpans[index].style.opacity = opacity;
+                    // Record the distance at which this word appeared
+                    visibleWords.set(index, distance);
+                    wordSpans[index].style.opacity = MIN_OPACITY;
                 });
             } else if (targetWordCount < currentWordCount) {
                 // Need to hide some words - pick randomly from visible ones
-                const visibleArray = Array.from(visibleIndices);
+                const visibleArray = Array.from(visibleWords.keys());
                 const toHide = randomSelect(visibleArray, currentWordCount - targetWordCount);
                 toHide.forEach(index => {
-                    visibleIndices.delete(index);
+                    visibleWords.delete(index);
                     wordSpans[index].style.opacity = 0;
                 });
             }
 
-            // Update opacity of remaining visible words based on current distance
-            if (visibleIndices.size > 0) {
-                updateVisibleOpacity(calculateOpacity(distance));
-            }
+            // Update opacity of all visible words based on their individual progress
+            updateAllWordOpacities(distance);
         }
 
         // Load source text on page load
