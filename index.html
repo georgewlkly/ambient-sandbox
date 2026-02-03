@@ -109,12 +109,17 @@
             margin-top: 30px;
             padding: 20px;
             border: 2px solid black;
-            display: none;
             line-height: 1.6;
+            min-height: 150px;
         }
 
-        .revealed-text.visible {
-            display: block;
+        .revealed-text .word {
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .revealed-text .word.visible {
+            opacity: 1;
         }
 
         .error {
@@ -158,9 +163,7 @@
         <button id="startBtn">Start</button>
         <button id="resetBtn" style="display: none;">Reset</button>
 
-        <div class="revealed-text" id="revealedText">
-            Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Vivamus lacinia odio vitae vestibulum vestibulum.
-        </div>
+        <div class="revealed-text" id="revealedText"></div>
     </div>
 
     <script>
@@ -174,7 +177,41 @@
 
         let startPosition = null;
         let watchId = null;
-        let hasRevealed = false;
+
+        // Lorem ipsum text (100 words)
+        const loremText = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Vivamus lacinia odio vitae vestibulum vestibulum.";
+        const words = loremText.split(' ');
+        let wordSpans = [];
+
+        // Initialize word spans
+        function initializeWords() {
+            revealedText.innerHTML = '';
+            wordSpans = [];
+            words.forEach((word, index) => {
+                const span = document.createElement('span');
+                span.className = 'word';
+                span.textContent = word + (index < words.length - 1 ? ' ' : '');
+                revealedText.appendChild(span);
+                wordSpans.push(span);
+            });
+        }
+
+        // Update visible words based on distance
+        function updateWords(distance) {
+            const percentage = Math.min(distance / 100, 1);
+            const wordsToShow = Math.floor(percentage * words.length);
+
+            wordSpans.forEach((span, index) => {
+                if (index < wordsToShow) {
+                    span.classList.add('visible');
+                } else {
+                    span.classList.remove('visible');
+                }
+            });
+        }
+
+        // Initialize on load
+        initializeWords();
 
         // Calculate distance between two coordinates using Haversine formula
         function calculateDistance(lat1, lon1, lat2, lon2) {
@@ -200,11 +237,14 @@
             distanceEl.textContent = displayDistance;
             scaleFill.style.width = percentage + '%';
 
-            // Reveal text at 100m
-            if (distance >= 100 && !hasRevealed) {
-                hasRevealed = true;
-                revealedText.classList.add('visible');
-                statusEl.textContent = 'You reached 100m!';
+            // Update words based on distance
+            updateWords(distance);
+
+            // Update status when reaching 100m
+            if (distance >= 100) {
+                statusEl.textContent = 'You reached 100m! Full text revealed.';
+            } else if (startPosition) {
+                statusEl.textContent = 'Tracking... Walk away from your start point';
             }
         }
 
@@ -282,10 +322,9 @@
         function reset() {
             stopTracking();
             startPosition = null;
-            hasRevealed = false;
             distanceEl.textContent = '0';
             scaleFill.style.width = '0%';
-            revealedText.classList.remove('visible');
+            initializeWords(); // Reset all words to hidden
             statusEl.textContent = 'Press Start to begin tracking';
             errorEl.textContent = '';
             startBtn.style.display = 'block';
