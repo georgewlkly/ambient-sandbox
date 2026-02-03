@@ -178,9 +178,8 @@
         let startPosition = null;
         let watchId = null;
 
-        // Lorem ipsum text (100 words)
-        const loremText = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Vivamus lacinia odio vitae vestibulum vestibulum.";
-        const words = loremText.split(' ');
+        // Text loaded from source.html
+        let words = [];
         let wordSpans = [];
 
         // Configuration
@@ -189,6 +188,21 @@
 
         // Track which word indices are currently visible
         let visibleIndices = new Set();
+
+        // Load text from source.html
+        async function loadSourceText() {
+            try {
+                const response = await fetch('source.html');
+                if (!response.ok) {
+                    throw new Error('Failed to load source.html');
+                }
+                const text = await response.text();
+                words = text.trim().split(/\s+/);
+                initializeWords();
+            } catch (error) {
+                errorEl.textContent = 'Error loading text: ' + error.message;
+            }
+        }
 
         // Initialize word spans
         function initializeWords() {
@@ -253,8 +267,8 @@
             }
         }
 
-        // Initialize on load
-        initializeWords();
+        // Load source text on page load
+        loadSourceText();
 
         // Calculate distance between two coordinates using Haversine formula
         function calculateDistance(lat1, lon1, lat2, lon2) {
