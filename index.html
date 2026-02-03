@@ -179,7 +179,7 @@
         let watchId = null;
 
         // Text loaded from source.html
-        let words = [];
+        let sourceHTML = '';
         let wordSpans = [];
 
         // Configuration
@@ -189,33 +189,65 @@
         // Track which word indices are currently visible
         let visibleIndices = new Set();
 
-        // Load text from source.html
+        // Load HTML from source.html
         async function loadSourceText() {
             try {
                 const response = await fetch('source.html');
                 if (!response.ok) {
                     throw new Error('Failed to load source.html');
                 }
-                const text = await response.text();
-                words = text.trim().split(/\s+/);
+                sourceHTML = await response.text();
                 initializeWords();
             } catch (error) {
                 errorEl.textContent = 'Error loading text: ' + error.message;
             }
         }
 
-        // Initialize word spans
+        // Walk through all text nodes and wrap each word in a span
+        function wrapWordsInTextNode(textNode, spans) {
+            const text = textNode.textContent;
+            const words = text.split(/(\s+)/); // Split but keep whitespace
+            const fragment = document.createDocumentFragment();
+
+            words.forEach(part => {
+                if (part.match(/^\s+$/)) {
+                    // Whitespace - add as text node
+                    fragment.appendChild(document.createTextNode(part));
+                } else if (part.length > 0) {
+                    // Word - wrap in span
+                    const span = document.createElement('span');
+                    span.className = 'word';
+                    span.textContent = part;
+                    fragment.appendChild(span);
+                    spans.push(span);
+                }
+            });
+
+            textNode.parentNode.replaceChild(fragment, textNode);
+        }
+
+        // Recursively process all text nodes in an element
+        function processTextNodes(element, spans) {
+            // Get all child nodes as array (since we'll be modifying the DOM)
+            const childNodes = Array.from(element.childNodes);
+
+            childNodes.forEach(node => {
+                if (node.nodeType === Node.TEXT_NODE) {
+                    if (node.textContent.trim().length > 0) {
+                        wrapWordsInTextNode(node, spans);
+                    }
+                } else if (node.nodeType === Node.ELEMENT_NODE) {
+                    processTextNodes(node, spans);
+                }
+            });
+        }
+
+        // Initialize word spans from HTML content
         function initializeWords() {
-            revealedText.innerHTML = '';
+            revealedText.innerHTML = sourceHTML;
             wordSpans = [];
             visibleIndices = new Set();
-            words.forEach((word, index) => {
-                const span = document.createElement('span');
-                span.className = 'word';
-                span.textContent = word + (index < words.length - 1 ? ' ' : '');
-                revealedText.appendChild(span);
-                wordSpans.push(span);
-            });
+            processTextNodes(revealedText, wordSpans);
         }
 
         // Randomly select n items from an array
@@ -240,13 +272,13 @@
 
             // Calculate how many words should be visible (0 at 40m, all at 100m)
             const percentage = Math.min((distance - START_DISTANCE) / (END_DISTANCE - START_DISTANCE), 1);
-            const targetWordCount = Math.floor(percentage * words.length);
+            const targetWordCount = Math.floor(percentage * wordSpans.length);
             const currentWordCount = visibleIndices.size;
 
             if (targetWordCount > currentWordCount) {
                 // Need to show more words - pick randomly from hidden ones
                 const hiddenIndices = [];
-                for (let i = 0; i < words.length; i++) {
+                for (let i = 0; i < wordSpans.length; i++) {
                     if (!visibleIndices.has(i)) {
                         hiddenIndices.push(i);
                     }
