@@ -118,10 +118,6 @@
             transition: opacity 0.3s ease;
         }
 
-        .revealed-text .word.visible {
-            opacity: 1;
-        }
-
         .error {
             color: red;
             text-align: center;
@@ -183,11 +179,15 @@
         let wordSpans = [];
 
         // Configuration
-        const START_DISTANCE = 40; // Words start appearing at 40m
-        const END_DISTANCE = 100;  // All words visible at 100m
+        const APPEAR_START = 40;    // Words start appearing at 40m
+        const APPEAR_END = 100;     // All words visible at 100m
+        const DISAPPEAR_END = 80;   // All words gone by 80m when returning
+        const MIN_OPACITY = 0.1;    // Starting opacity at 40m
+        const MAX_OPACITY = 1.0;    // Full opacity at 100m
 
         // Track which word indices are currently visible
         let visibleIndices = new Set();
+        let previousDistance = 0;
 
         // Load HTML from source.html
         async function loadSourceText() {
@@ -247,6 +247,7 @@
             revealedText.innerHTML = sourceHTML;
             wordSpans = [];
             visibleIndices = new Set();
+            previousDistance = 0;
             processTextNodes(revealedText, wordSpans);
         }
 
@@ -256,23 +257,44 @@
             return shuffled.slice(0, n);
         }
 
+        // Calculate opacity based on distance (10% at 40m, 100% at 100m)
+        function calculateOpacity(distance) {
+            if (distance <= APPEAR_START) return MIN_OPACITY;
+            if (distance >= APPEAR_END) return MAX_OPACITY;
+            const progress = (distance - APPEAR_START) / (APPEAR_END - APPEAR_START);
+            return MIN_OPACITY + progress * (MAX_OPACITY - MIN_OPACITY);
+        }
+
+        // Update opacity for all visible words
+        function updateVisibleOpacity(opacity) {
+            visibleIndices.forEach(index => {
+                wordSpans[index].style.opacity = opacity;
+            });
+        }
+
         // Update visible words based on distance
         function updateWords(distance) {
-            // No words visible below START_DISTANCE
-            if (distance < START_DISTANCE) {
-                // Hide all currently visible words randomly
-                if (visibleIndices.size > 0) {
-                    visibleIndices.forEach(index => {
-                        wordSpans[index].classList.remove('visible');
-                    });
-                    visibleIndices.clear();
+            const isMovingAway = distance >= previousDistance;
+            previousDistance = distance;
+
+            // Calculate target word count based on direction
+            let targetWordCount = 0;
+
+            if (isMovingAway) {
+                // Moving away: use 40-100m range for appearing
+                if (distance >= APPEAR_START) {
+                    const percentage = Math.min((distance - APPEAR_START) / (APPEAR_END - APPEAR_START), 1);
+                    targetWordCount = Math.floor(percentage * wordSpans.length);
                 }
-                return;
+            } else {
+                // Moving back: use 80-100m range for disappearing (faster)
+                if (distance >= DISAPPEAR_END) {
+                    const percentage = Math.min((distance - DISAPPEAR_END) / (APPEAR_END - DISAPPEAR_END), 1);
+                    targetWordCount = Math.floor(percentage * wordSpans.length);
+                }
+                // Below 80m = 0 words
             }
 
-            // Calculate how many words should be visible (0 at 40m, all at 100m)
-            const percentage = Math.min((distance - START_DISTANCE) / (END_DISTANCE - START_DISTANCE), 1);
-            const targetWordCount = Math.floor(percentage * wordSpans.length);
             const currentWordCount = visibleIndices.size;
 
             if (targetWordCount > currentWordCount) {
@@ -284,9 +306,10 @@
                     }
                 }
                 const toReveal = randomSelect(hiddenIndices, targetWordCount - currentWordCount);
+                const opacity = calculateOpacity(distance);
                 toReveal.forEach(index => {
                     visibleIndices.add(index);
-                    wordSpans[index].classList.add('visible');
+                    wordSpans[index].style.opacity = opacity;
                 });
             } else if (targetWordCount < currentWordCount) {
                 // Need to hide some words - pick randomly from visible ones
@@ -294,8 +317,13 @@
                 const toHide = randomSelect(visibleArray, currentWordCount - targetWordCount);
                 toHide.forEach(index => {
                     visibleIndices.delete(index);
-                    wordSpans[index].classList.remove('visible');
+                    wordSpans[index].style.opacity = 0;
                 });
+            }
+
+            // Update opacity of remaining visible words based on current distance
+            if (visibleIndices.size > 0) {
+                updateVisibleOpacity(calculateOpacity(distance));
             }
         }
 
