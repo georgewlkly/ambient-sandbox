@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Distance Tracker</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: white;
+            color: black;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .distance-display {
+            font-size: 48px;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .scale-container {
+            margin-bottom: 30px;
+        }
+
+        .scale-bar {
+            width: 100%;
+            height: 30px;
+            border: 2px solid black;
+            position: relative;
+            background: white;
+        }
+
+        .scale-fill {
+            height: 100%;
+            background: black;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .scale-labels {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 5px;
+            font-size: 14px;
+        }
+
+        .scale-ticks {
+            display: flex;
+            justify-content: space-between;
+            padding: 0 0;
+            position: relative;
+            height: 10px;
+        }
+
+        .tick {
+            width: 2px;
+            height: 10px;
+            background: black;
+        }
+
+        button {
+            width: 100%;
+            padding: 15px;
+            font-size: 18px;
+            background: white;
+            color: black;
+            border: 2px solid black;
+            cursor: pointer;
+            margin-bottom: 10px;
+        }
+
+        button:active {
+            background: black;
+            color: white;
+        }
+
+        button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .status {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 14px;
+            min-height: 20px;
+        }
+
+        .revealed-text {
+            margin-top: 30px;
+            padding: 20px;
+            border: 2px solid black;
+            display: none;
+            line-height: 1.6;
+        }
+
+        .revealed-text.visible {
+            display: block;
+        }
+
+        .error {
+            color: red;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Distance Tracker</h1>
+
+        <div class="status" id="status">Press Start to begin tracking</div>
+        <div class="error" id="error"></div>
+
+        <div class="distance-display">
+            <span id="distance">0</span>m
+        </div>
+
+        <div class="scale-container">
+            <div class="scale-bar">
+                <div class="scale-fill" id="scaleFill"></div>
+            </div>
+            <div class="scale-ticks">
+                <div class="tick"></div>
+                <div class="tick"></div>
+                <div class="tick"></div>
+                <div class="tick"></div>
+                <div class="tick"></div>
+            </div>
+            <div class="scale-labels">
+                <span>0m</span>
+                <span>25m</span>
+                <span>50m</span>
+                <span>75m</span>
+                <span>100m</span>
+            </div>
+        </div>
+
+        <button id="startBtn">Start</button>
+        <button id="resetBtn" style="display: none;">Reset</button>
+
+        <div class="revealed-text" id="revealedText">
+            Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Vivamus lacinia odio vitae vestibulum vestibulum.
+        </div>
+    </div>
+
+    <script>
+        const startBtn = document.getElementById('startBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const distanceEl = document.getElementById('distance');
+        const scaleFill = document.getElementById('scaleFill');
+        const statusEl = document.getElementById('status');
+        const errorEl = document.getElementById('error');
+        const revealedText = document.getElementById('revealedText');
+
+        let startPosition = null;
+        let watchId = null;
+        let hasRevealed = false;
+
+        // Calculate distance between two coordinates using Haversine formula
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371000; // Earth's radius in meters
+            const dLat = toRad(lat2 - lat1);
+            const dLon = toRad(lon2 - lon1);
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+                      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            return R * c;
+        }
+
+        function toRad(deg) {
+            return deg * (Math.PI / 180);
+        }
+
+        function updateDisplay(distance) {
+            // Cap display at 100m
+            const displayDistance = Math.min(Math.round(distance), 100);
+            const percentage = Math.min((distance / 100) * 100, 100);
+
+            distanceEl.textContent = displayDistance;
+            scaleFill.style.width = percentage + '%';
+
+            // Reveal text at 100m
+            if (distance >= 100 && !hasRevealed) {
+                hasRevealed = true;
+                revealedText.classList.add('visible');
+                statusEl.textContent = 'You reached 100m!';
+            }
+        }
+
+        function handlePosition(position) {
+            const { latitude, longitude } = position.coords;
+
+            if (!startPosition) {
+                startPosition = { latitude, longitude };
+                statusEl.textContent = 'Tracking... Walk away from your start point';
+                return;
+            }
+
+            const distance = calculateDistance(
+                startPosition.latitude,
+                startPosition.longitude,
+                latitude,
+                longitude
+            );
+
+            updateDisplay(distance);
+        }
+
+        function handleError(error) {
+            let message = '';
+            switch (error.code) {
+                case error.PERMISSION_DENIED:
+                    message = 'Location permission denied. Please enable location access.';
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    message = 'Location unavailable. Please try again.';
+                    break;
+                case error.TIMEOUT:
+                    message = 'Location request timed out. Please try again.';
+                    break;
+                default:
+                    message = 'An error occurred getting your location.';
+            }
+            errorEl.textContent = message;
+            stopTracking();
+        }
+
+        function startTracking() {
+            if (!navigator.geolocation) {
+                errorEl.textContent = 'Geolocation is not supported by your browser.';
+                return;
+            }
+
+            errorEl.textContent = '';
+            statusEl.textContent = 'Getting your location...';
+            startBtn.disabled = true;
+
+            const options = {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 0
+            };
+
+            watchId = navigator.geolocation.watchPosition(
+                handlePosition,
+                handleError,
+                options
+            );
+
+            startBtn.style.display = 'none';
+            resetBtn.style.display = 'block';
+        }
+
+        function stopTracking() {
+            if (watchId !== null) {
+                navigator.geolocation.clearWatch(watchId);
+                watchId = null;
+            }
+        }
+
+        function reset() {
+            stopTracking();
+            startPosition = null;
+            hasRevealed = false;
+            distanceEl.textContent = '0';
+            scaleFill.style.width = '0%';
+            revealedText.classList.remove('visible');
+            statusEl.textContent = 'Press Start to begin tracking';
+            errorEl.textContent = '';
+            startBtn.style.display = 'block';
+            startBtn.disabled = false;
+            resetBtn.style.display = 'none';
+        }
+
+        startBtn.addEventListener('click', startTracking);
+        resetBtn.addEventListener('click', reset);
+    </script>
+</body>
+</html>
